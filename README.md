@@ -4,15 +4,16 @@ A lightweight terminal-based presentation tool using ASCII art slides. Perfect f
 
 ## Intended Workflow
 
-This tool is designed to be used with AI assistants (Claude, ChatGPT, etc.) to generate slides. The ASCII art format with strict 72-character line widths is tedious for humans to create manually, but AI can generate properly formatted slides quickly from a topic outline.
+This tool is designed to be used with AI assistants (Claude, ChatGPT, etc.) to generate slides. The ASCII art format with strict 72-character line widths is tedious for humans to create manually, but AI can generate properly formatted slides quickly.
 
 **Typical workflow:**
-1. Describe your presentation topic and structure to an AI
-2. AI generates the markdown slide files following the format rules
-3. Review and iterate with the AI as needed
-4. Present using this tool
+1. Bootstrap your AI session with `SLIDE_GUIDELINES.md`
+2. Provide your content, notes, or have a conversation about the topic
+3. AI generates markdown slide files following the guidelines
+4. Review and iterate as needed
+5. Present using this tool
 
-The slide templates and format rules in this README serve as a reference for AI to follow when generating your slides.
+The `SLIDE_GUIDELINES.md` file contains all the formatting rules and templates the AI needs to create properly formatted slides.
 
 ## Features
 
