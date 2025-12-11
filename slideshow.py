@@ -394,10 +394,13 @@ class Slideshow:
         print('\033[0m', end='')  # Reset
         sys.stdout.flush()
 
-    def _render_index(self):
-        """Render slide index."""
+    def _render_index(self, selected_index=None):
+        """Render slide index with optional selection highlight."""
         self._clear_screen()
         width, height = self._get_terminal_size()
+
+        # Use selected_index for highlight, default to current_index
+        highlight = selected_index if selected_index is not None else self.current_index
 
         print('\033[1m' + '═' * width + '\033[0m')
         print('\033[1mSLIDE INDEX\033[0m')
@@ -405,13 +408,22 @@ class Slideshow:
         print()
 
         for i, slide in enumerate(self.slides):
-            marker = '▶ ' if i == self.current_index else '  '
-            num = f"{i + 1:2d}"
-            print(f"{marker}{num}. {slide['title']}")
+            if i == highlight:
+                # Highlighted selection - inverse video
+                marker = '▶ '
+                num = f"{i + 1:2d}"
+                line = f"{marker}{num}. {slide['title']}"
+                # Pad to fill width for full highlight bar
+                line = line + ' ' * (width - len(line))
+                print(f'\033[7m{line}\033[0m')
+            else:
+                marker = '  '
+                num = f"{i + 1:2d}"
+                print(f"{marker}{num}. {slide['title']}")
 
         print()
         print('─' * width)
-        print('Press any key to return to slide, or enter a number to jump...')
+        print('[↑/k]up [↓/j]down [ENTER]select [ESC/q]cancel')
         sys.stdout.flush()
 
     def _render_help(self):
@@ -620,24 +632,31 @@ class Slideshow:
 
                 # Index
                 elif key == 'i':
-                    self._render_index()
-                    key2 = self._get_keypress()
-                    if key2.isdigit():
-                        num_str = key2
-                        # Allow multi-digit input
-                        while True:
-                            fd = sys.stdin.fileno()
-                            old = termios.tcgetattr(fd)
-                            try:
-                                tty.setraw(fd)
-                                ch = sys.stdin.read(1)
-                            finally:
-                                termios.tcsetattr(fd, termios.TCSADRAIN, old)
-                            if ch.isdigit():
-                                num_str += ch
-                            else:
-                                break
-                        self.goto_slide(int(num_str))
+                    selected = self.current_index
+                    self._render_index(selected)
+
+                    while True:
+                        key2 = self._get_keypress()
+
+                        # Navigate up
+                        if key2 in ('k', 'UP'):
+                            selected = max(0, selected - 1)
+                            self._render_index(selected)
+
+                        # Navigate down
+                        elif key2 in ('j', 'DOWN'):
+                            selected = min(len(self.slides) - 1, selected + 1)
+                            self._render_index(selected)
+
+                        # Select current and go to slide
+                        elif key2 in ('\r', '\n', ' '):
+                            self.goto_slide(selected + 1)
+                            break
+
+                        # Cancel/exit index
+                        elif key2 in ('q', 'ESC', '\x1b', 'i'):
+                            break
+
                     self._render_slide()
 
                 # Help
