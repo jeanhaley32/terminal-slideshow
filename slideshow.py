@@ -15,8 +15,12 @@ Controls:
     j, DOWN                       - Scroll down
     k, UP                         - Scroll up
 
+    SPEAKER NOTES
+    s                             - Toggle notes panel
+    +, =                          - Expand notes panel
+    -, _                          - Shrink notes panel
+
     VIEW OPTIONS
-    s                             - Show speaker notes
     i                             - Show slide index
     h, ?                          - Show help
     r                             - Refresh screen
@@ -79,7 +83,8 @@ class Slideshow:
         self.slides = self._load_slides()
         self.current_index = 0
         self.scroll_offset = 0  # For scrolling tall slides
-        self.show_notes = False
+        self.show_notes = False  # Toggle for persistent notes panel
+        self.notes_height = 6   # Height of notes panel (excluding border)
 
     def _load_slides(self):
         """Load all slide files in order."""
@@ -198,6 +203,73 @@ class Slideshow:
 
         return '\n'.join(art_lines) if art_lines else content
 
+    def _wrap_text(self, text, width):
+        """Wrap text to fit within specified width."""
+        words = text.split()
+        lines = []
+        current_line = []
+        current_length = 0
+
+        for word in words:
+            word_len = len(word)
+            if current_length + word_len + (1 if current_line else 0) <= width:
+                current_line.append(word)
+                current_length += word_len + (1 if len(current_line) > 1 else 0)
+            else:
+                if current_line:
+                    lines.append(' '.join(current_line))
+                current_line = [word]
+                current_length = word_len
+
+        if current_line:
+            lines.append(' '.join(current_line))
+
+        return lines if lines else ['']
+
+    def _render_notes_panel(self, width, panel_height):
+        """Render the speaker notes panel at the bottom of the screen."""
+        slide = self.slides[self.current_index]
+        notes_text = slide['notes'].strip() if slide['notes'] else '(No speaker notes)'
+
+        # Box drawing
+        top_border = '┌' + '─' * (width - 2) + '┐'
+        bottom_border = '└' + '─' * (width - 2) + '┘'
+        title_line = '│ SPEAKER NOTES' + ' ' * (width - 17) + '│'
+        separator = '├' + '─' * (width - 2) + '┤'
+
+        # Wrap notes text to fit inside the box (width - 4 for borders and padding)
+        inner_width = width - 4
+        wrapped_lines = []
+        for paragraph in notes_text.split('\n'):
+            if paragraph.strip():
+                wrapped_lines.extend(self._wrap_text(paragraph.strip(), inner_width))
+            else:
+                wrapped_lines.append('')
+
+        # Build notes content lines
+        content_lines = []
+        available_content_lines = panel_height - 4  # Subtract borders and title
+
+        for i in range(available_content_lines):
+            if i < len(wrapped_lines):
+                line_content = wrapped_lines[i]
+                padding = inner_width - len(line_content)
+                content_lines.append('│ ' + line_content + ' ' * padding + ' │')
+            else:
+                content_lines.append('│' + ' ' * (width - 2) + '│')
+
+        # Print the panel with dim styling
+        print('\033[2m', end='')  # Dim text
+        print(top_border)
+        print('\033[1;2m', end='')  # Bold + dim for title
+        print(title_line)
+        print('\033[2m', end='')  # Back to just dim
+        print(separator)
+        for line in content_lines:
+            print(line)
+        print(bottom_border, end='')
+        print('\033[0m', end='')  # Reset
+
     def _render_slide(self):
         """Render the current slide to terminal with scroll support."""
         self._clear_screen()
@@ -212,8 +284,10 @@ class Slideshow:
         content_lines = self._prepare_slide_content(content, width)
         total_content_height = len(content_lines)
 
-        # Reserve space for status bar (1 line)
-        available_height = height - 1
+        # Calculate available height based on notes panel visibility
+        # Reserve: 1 line for status bar, optionally notes_height + 4 for notes panel
+        notes_panel_height = self.notes_height + 4 if self.show_notes else 0
+        available_height = height - 1 - notes_panel_height
 
         # Check if content needs scrolling
         needs_scroll = total_content_height > available_height
@@ -252,15 +326,16 @@ class Slideshow:
         for _ in range(bottom_padding):
             screen_lines.append(' ' * width)
 
-        # Print all content lines (no newline on last to keep cursor position)
-        for i, line in enumerate(screen_lines):
-            if i < len(screen_lines) - 1:
-                print(line)
-            else:
-                print(line, end='')
+        # Print all content lines
+        for line in screen_lines:
+            print(line)
 
-        # Move to last line and print status bar
-        print()  # Newline before status bar
+        # Render notes panel if enabled
+        if self.show_notes:
+            self._render_notes_panel(width, notes_panel_height)
+            print()  # Newline before status bar
+
+        # Print status bar
         self._render_status_bar(width, needs_scroll, total_content_height, available_height)
 
     def _render_status_bar(self, width, needs_scroll=False, total_lines=0, visible_lines=0):
@@ -278,14 +353,17 @@ class Slideshow:
         else:
             scroll_indicator = ""
 
+        # Notes indicator
+        notes_indicator = " [notes ON]" if self.show_notes else ""
+
         # Help hints - show scroll keys if scrollable
         if needs_scroll:
-            help_hint = "[j/k]scroll [n]ext [p]rev [q]uit"
+            help_hint = "[j/k]scroll [s]notes [n]ext [p]rev [q]uit"
         else:
-            help_hint = "[h]elp [n]ext [p]rev [q]uit"
+            help_hint = "[s]notes [n]ext [p]rev [h]elp [q]uit"
 
         # Build status bar
-        status = f" {position}{scroll_indicator}  {slide['title']}"
+        status = f" {position}{scroll_indicator}{notes_indicator}  {slide['title']}"
 
         # Calculate padding, ensuring we don't exceed terminal width
         min_spacing = 2
@@ -314,28 +392,6 @@ class Slideshow:
         print('\033[7m', end='')  # Inverse video
         print(status_line, end='')
         print('\033[0m', end='')  # Reset
-        sys.stdout.flush()
-
-    def _render_notes(self):
-        """Render speaker notes overlay."""
-        self._clear_screen()
-        width, height = self._get_terminal_size()
-
-        slide = self.slides[self.current_index]
-
-        print('\033[1m' + '═' * width + '\033[0m')
-        print('\033[1mSPEAKER NOTES\033[0m')
-        print('═' * width)
-        print()
-
-        if slide['notes']:
-            print(slide['notes'])
-        else:
-            print('(No speaker notes for this slide)')
-
-        print()
-        print('─' * width)
-        print('Press any key to return to slide...')
         sys.stdout.flush()
 
     def _render_index(self):
@@ -381,15 +437,18 @@ class Slideshow:
 ║   j, ↓                     Scroll down                        ║
 ║   k, ↑                     Scroll up                          ║
 ║                                                               ║
+║   SPEAKER NOTES                                               ║
+║   ─────────────                                               ║
+║   s                        Toggle notes panel on/off          ║
+║   +, =                     Expand notes panel                 ║
+║   -, _                     Shrink notes panel                 ║
+║                                                               ║
 ║   VIEW OPTIONS                                                ║
 ║   ────────────                                                ║
-║   s                        Show speaker notes                 ║
 ║   i                        Show slide index                   ║
 ║   r                        Refresh/redraw screen              ║
-║                                                               ║
-║   OTHER                                                       ║
-║   ─────                                                       ║
 ║   h, ?                     Show this help                     ║
+║                                                               ║
 ║   q, x, ESC                Quit slideshow                     ║
 ║                                                               ║
 ╚═══════════════════════════════════════════════════════════════╝
@@ -543,11 +602,21 @@ class Slideshow:
                         self.goto_slide(num)
                     self._render_slide()
 
-                # Speaker notes
+                # Toggle speaker notes panel
                 elif key == 's':
-                    self._render_notes()
-                    self._get_keypress()
+                    self.show_notes = not self.show_notes
                     self._render_slide()
+
+                # Resize notes panel
+                elif key == '+' or key == '=':
+                    if self.show_notes:
+                        self.notes_height = min(self.notes_height + 2, 20)
+                        self._render_slide()
+
+                elif key == '-' or key == '_':
+                    if self.show_notes:
+                        self.notes_height = max(self.notes_height - 2, 2)
+                        self._render_slide()
 
                 # Index
                 elif key == 'i':
