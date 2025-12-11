@@ -2,6 +2,18 @@
 
 A lightweight terminal-based presentation tool using ASCII art slides. Perfect for developer presentations, tech talks, and keeping your audience focused on content.
 
+## Intended Workflow
+
+This tool is designed to be used with AI assistants (Claude, ChatGPT, etc.) to generate slides. The ASCII art format with strict 72-character line widths is tedious for humans to create manually, but AI can generate properly formatted slides quickly from a topic outline.
+
+**Typical workflow:**
+1. Describe your presentation topic and structure to an AI
+2. AI generates the markdown slide files following the format rules
+3. Review and iterate with the AI as needed
+4. Present using this tool
+
+The slide templates and format rules in this README serve as a reference for AI to follow when generating your slides.
+
 ## Features
 
 - **Pure terminal** - No GUI, no browser, just your terminal
